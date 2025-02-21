@@ -1,0 +1,42 @@
+schemaVersion: '2.2'
+description: "SSM Document to create a folder, run a PowerShell script from GitHub, upload to S3, and clean up."
+mainSteps:
+  - name: CreateFolder
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "if (-Not (Test-Path 'C:\\temp\\IT.MA.03.WindowsServers')) { New-Item -ItemType Directory -Path 'C:\\temp\\IT.MA.03.WindowsServers' -Force }"
+
+  - name: RunRemoteScript
+    action: aws:runDocument
+    inputs:
+      DocumentName: "AWS-RunRemoteScript"
+      Parameters:
+        sourceType: "GitHub"
+        sourceInfo: |
+          {
+            "owner": "your-github-org-or-user",
+            "repository": "your-repo-name",
+            "path": "your-script.ps1",
+            "branch": "your-branch-name",
+            "tokenInfo": "your-github-token-secret-name"
+          }
+        commandLine: "powershell -ExecutionPolicy Bypass -File C:\\temp\\IT.MA.03.WindowsServers\\your-script.ps1"
+
+  - name: WaitForCompletion
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "Start-Sleep -Seconds 3"
+
+  - name: UploadToS3
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "aws s3 cp C:\\temp\\IT.MA.03.WindowsServers\\ s3://cops-windows-sox-evidence/ --recursive --exclude '*' --include '*.xlsx'"
+
+  - name: DeleteFolder
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "Remove-Item -Path 'C:\\temp\\IT.MA.03.WindowsServers' -Recurse -Force"
