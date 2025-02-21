@@ -1,0 +1,49 @@
+schemaVersion: '2.2'
+description: "SSM Document to create a folder, download from S3, execute a PowerShell script from GitHub using RunRemoteScript, upload results, and clean up."
+mainSteps:
+  - name: CreateFolder
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "New-Item -ItemType Directory -Path 'C:\\temp\\IT.MA.03.WindowsServers' -Force -ErrorAction SilentlyContinue"
+
+  - name: DownloadFromS3
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "aws s3 cp s3://cops-windows-sox-evidence/ C:\\temp\\IT.MA.03.WindowsServers\\ --recursive --exclude '*' --include '*.csv'"
+
+  - name: RunGitHubScript
+    action: aws:runDocument
+    inputs:
+      DocumentName: "AWS-RunRemoteScript"
+      Parameters:
+        sourceType: "GitHub"
+        sourceInfo: |
+          {
+            "owner": "your-github-org-or-user",
+            "repository": "your-repo-name",
+            "path": "your-script.ps1",
+            "branch": "your-branch-name",
+            "tokenInfo": "your-github-token-secret-name"
+          }
+        commandLine: "powershell -ExecutionPolicy Bypass -File your-script.ps1"
+        workingDirectory: "C:\\temp\\IT.MA.03.WindowsServers"
+
+  - name: WaitForCompletion
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "Start-Sleep -Seconds 3"
+
+  - name: UploadToS3
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "aws s3 cp C:\\temp\\IT.MA.03.WindowsServers\\ConsolidatedEvidence.csv s3://cops-windows-sox-evidence/"
+
+  - name: DeleteFolder
+    action: aws:runPowerShellScript
+    inputs:
+      runCommand:
+        - "Remove-Item -Path 'C:\\temp\\IT.MA.03.WindowsServers' -Recurse -Force -ErrorAction SilentlyContinue"
